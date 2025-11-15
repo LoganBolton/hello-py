@@ -8,6 +8,8 @@ import pandas as pd
 from anthropic import AsyncAnthropic
 from anthropic.types import MessageParam, ToolUnionParam
 import os
+
+from generate_gt_data import generate_test_data
 api_key = os.getenv("ANTHROPIC_API_KEY_PERSONAL")
 if api_key is None:
     raise ValueError("ANTHROPIC_API_KEY_PERSONAL is not set")
@@ -168,14 +170,19 @@ async def run_agent_loop(
 async def run_single_test(
     run_id: int,
     num_runs: int,
-    prompt: str,
+    prompt_template: str,
     tools: list[ToolUnionParam],
     tool_handlers: dict[str, Callable[..., Any]],
-    expected_answer: Any,
     verbose: bool = False,
 ) -> tuple[int, bool, Any]:
     if verbose:
         print(f"\n\n{'=' * 20} RUN {run_id}/{num_runs} {'=' * 20}")
+
+    # Generate fresh data for this test run
+    display_csv, expected_answer = generate_test_data()
+
+    # Fill in the prompt template
+    prompt = prompt_template.format(display_csv_raw=display_csv)
 
     result = await run_agent_loop(
         prompt=prompt,
@@ -198,14 +205,18 @@ async def run_single_test(
         if isinstance(result, str) and isinstance(expected_answer, str):
             result_lines = result_normalized.split('\n')
             expected_lines = expected_normalized.split('\n')
+            original_lines = display_csv.strip().split('\n')
             print(f"  Got {len(result_lines)} lines, expected {len(expected_lines)} lines")
 
             # Show line-by-line differences
             for i, (got, exp) in enumerate(zip(result_lines, expected_lines)):
                 if got != exp:
                     print(f"  Line {i+1} differs:")
-                    print(f"    Got:      {got}")
+                    # Show original if available (skip header)
+                    if i > 0 and i < len(original_lines):
+                        print(f"    Original: {original_lines[i]}")
                     print(f"    Expected: {exp}")
+                    print(f"    Got:      {got}\n")
 
             # Show extra or missing lines
             if len(result_lines) > len(expected_lines):
@@ -224,14 +235,8 @@ async def run_single_test(
 
 
 async def main(concurrent: bool = True):
-    # Read both CSVs as raw strings
-    with open("data/display_df.csv", "r") as f:
-        display_csv_raw = f.read()
-
-    with open("data/answer_df.csv", "r") as f:
-        expected_answer = f.read().strip()
-
-    prompt = f"""You are given noisy customer data in CSV format that needs to be parsed and cleaned.
+    # Prompt template - data will be filled in for each test run
+    prompt_template = """You are given noisy customer data in CSV format that needs to be parsed and cleaned.
 
 Here is the input CSV:
 {display_csv_raw}
@@ -274,7 +279,7 @@ Submit your answer using the submit_answer tool."""
         "submit_answer": submit_answer_tool,
     }
 
-    num_runs = 2
+    num_runs = 5
 
     execution_mode = "concurrently" if concurrent else "sequentially"
     print(f"Running {num_runs} test iterations {execution_mode}...")
@@ -285,10 +290,9 @@ Submit your answer using the submit_answer tool."""
         run_single_test(
             run_id=i + 1,
             num_runs=num_runs,
-            prompt=prompt,
+            prompt_template=prompt_template,
             tools=tools,
             tool_handlers=tool_handlers,
-            expected_answer=expected_answer,
             verbose=False,
         )
         for i in range(num_runs)

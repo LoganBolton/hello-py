@@ -26,7 +26,6 @@ def generate_name():
 
     possible_last_names = ["Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Davis", "Rodriguez", "Martinez", "Hernandez", "Lopez", "Gonzalez", "Wilson", "Anderson", "Thomas", "Taylor", "Moore", "Jackson", "Martin", "Lee", "Perez", "Thompson", "White", "Harris", "Sanchez", "Clark", "Ramirez", "Lewis", "Robinson", "Walker", "Young", "Allen", "King", "Wright", "Scott", "Torres", "Nguyen", "Hill", "Flores", "Green", "Adams", "Baker", "Gonzalez", "Nelson", "Carter", "Mitchell", "Perez", "Roberts", "Turner", "Phillips", "Campbell", "Parker", "Evans", "Edwards", "Collins", "Stewart", "Sanchez", "Morris", "Rogers", "Reed", "Cook", "Morgan", "Bell", "Murphy", "Bailey", "Rivera", "Cooper", "Richardson", "Cox", "Howard", "Ward", "Torres", "Peterson", "Gray", "Ramirez", "James", "Watson", "Brooks", "Kelly", "Sanders", "Price", "Bennett", "Wood", "Barnes", "Ross", "Henderson", "Coleman", "Jenkins", "Perry", "Powell", "Long", "Patterson", "Hughes", "Flores", "Washington", "Butler", "Simmons", "Foster", "Gonzales", "Bryant", "Alexander", "Russell", "Griffin", "Diaz", "Hayes", "Bolton"]
 
-
     first_name = random.choice(possible_first_names)
     last_name = random.choice(possible_last_names)
     full_name = f"{first_name} {last_name}"
@@ -162,98 +161,88 @@ def noise_name(name_info):
     ]
     return random.choice(template_name)
 
-gt_df = pd.DataFrame()
-cols = ["noisy_full_name", "noisy_address", "noisy_phone_num", "noisy_email", "full_name", "full_address", "phone_num", "email", "first_name", "last_name", "phone_number", "city", "state", "state_abbrev", "zip_code", "street_address", "full_address", "area_code", "first_digits", "last_digits"]
+def generate_test_data(n_rows=10, noise_odds=0.6, dropout_odds=0.10):
+    """Generate test data without saving to files. Returns CSV strings."""
+    display_rows = []
+    answer_rows = []
 
-display_df = pd.DataFrame()
-display_cols = ["noisy_full_name", "noisy_address", "noisy_phone_num", "noisy_email"]
+    for i in range(n_rows):
+        name_info = generate_name()
+        first_name = name_info["first_name"].lower()
+        last_name = name_info["last_name"].lower()
 
-answer_df = pd.DataFrame()
-answer_cols = ["first_name", "last_name", "phone_num", "email", "street_address", "city", "state", "zip_code"]
-NOISE_ODDS = 0.8
-DROPPOUT_ODDS = 0.10
-N_ROWS = 30
-for i in range(N_ROWS):
+        email_info = generate_email(first_name, last_name)
+        phone_info = generate_phone_number()
+        address_info = generate_address()
 
-    name_info = generate_name()
-    first_name = name_info["first_name"].lower()
-    last_name = name_info["last_name"].lower()
-    
-    email_info = generate_email(first_name, last_name)
-    phone_info = generate_phone_number()
-    address_info = generate_address()
+        display_name = name_info["full_name"]
+        display_address = address_info["full_address"]
+        display_phone_number = phone_info["phone_num"]
+        display_email = email_info["email"]
 
-    display_name = name_info["full_name"]
-    display_address = address_info["full_address"]
-    display_phone_number = phone_info["phone_num"]
-    display_email = email_info["email"]
-    
-    if random.random() < NOISE_ODDS:
-        display_name = noise_name(name_info)
-    if random.random() < NOISE_ODDS:
-        display_address = noise_address(address_info)
-    if random.random() < NOISE_ODDS:
-        display_phone_number = noise_phone_number(phone_info)
-    if random.random() < NOISE_ODDS:
-        display_email = noise_email(email_info)
-        
-        
-    if random.random() < DROPPOUT_ODDS:
-        display_name = ""
-        first_name = ""
-        last_name = ""
-    if random.random() < DROPPOUT_ODDS:
-        display_address = ""
-        address_info["street_address"] = ""
-        address_info["city"] = ""
-        address_info["state"] = ""
-        address_info["zip_code"] = ""
-    if random.random() < DROPPOUT_ODDS:
-        display_phone_number = ""
-        phone_info["phone_num"] = ""
-    if random.random() < DROPPOUT_ODDS:
-        display_email = ""
-        email_info["email"] = ""
+        if random.random() < noise_odds:
+            display_name = noise_name(name_info)
+        if random.random() < noise_odds:
+            display_address = noise_address(address_info)
+        if random.random() < noise_odds:
+            display_phone_number = noise_phone_number(phone_info)
+        if random.random() < noise_odds:
+            display_email = noise_email(email_info)
 
-    display_df = pd.concat([display_df, pd.DataFrame([{
-        "noisy_full_name": display_name,
-        "noisy_phone_num": display_phone_number,
-        "noisy_email": display_email,
-        "noisy_address": display_address,
-    }])], ignore_index=True)
+        if random.random() < dropout_odds:
+            display_name = ""
+            first_name = ""
+            last_name = ""
+        if random.random() < dropout_odds:
+            display_address = ""
+            address_info["street_address"] = ""
+            address_info["city"] = ""
+            address_info["state"] = ""
+            address_info["zip_code"] = ""
+        if random.random() < dropout_odds:
+            display_phone_number = ""
+            phone_info["phone_num"] = ""
+        if random.random() < dropout_odds:
+            display_email = ""
+            email_info["email"] = ""
 
-    gt_df = pd.concat([gt_df, pd.DataFrame([{
-        "full_name": name_info["full_name"],
-        "full_address": address_info["full_address"],
-        "phone_num": phone_info["phone_num"],
-        "email": email_info["email"],
-        "first_name": first_name,
-        "last_name": last_name,
-        "phone_number": phone_info["phone_num"],
-        "city": address_info["city"],
-        "state": address_info["state"],
-        "state_abbrev": address_info["state_abbrev"],
-        "zip_code": address_info["zip_code"],
-        "street_address": address_info["street_address"],
-        "area_code": phone_info["area_code"],
-        "first_digits": phone_info["first_digits"],
-        "last_digits": phone_info["last_digits"]
-    }])], ignore_index=True)
-    
-    answer_df = pd.concat([answer_df, pd.DataFrame([{
-        "first_name": first_name.title(),
-        "last_name": last_name.title(),
-        "phone_num": phone_info["phone_num"],
-        "email": email_info["email"],
-        "street_address": address_info["street_address"],
-        "city": address_info["city"].title(),
-        "state": address_info["state"].title(),
-        "zip_code": address_info["zip_code"]
-    }])], ignore_index=True)
+        display_rows.append({
+            "noisy_full_name": display_name,
+            "noisy_phone_num": display_phone_number,
+            "noisy_email": display_email,
+            "noisy_address": display_address,
+        })
 
-    answer_df.to_csv("data/answer_df.csv", index=False)
-    display_df.to_csv("data/display_df.csv", index=False)
-    gt_df.to_csv("data/gt_df.csv", index=False)
+        answer_rows.append({
+            "first_name": first_name.title(),
+            "last_name": last_name.title(),
+            "phone_num": phone_info["phone_num"],
+            "email": email_info["email"],
+            "street_address": address_info["street_address"],
+            "city": address_info["city"].title(),
+            "state": address_info["state"].title(),
+            "zip_code": address_info["zip_code"]
+        })
 
-print(display_df)
-print(answer_df)
+    display_df = pd.DataFrame(display_rows)
+    answer_df = pd.DataFrame(answer_rows)
+
+    # Convert to CSV strings
+    display_csv = display_df.to_csv(index=False)
+    answer_csv = answer_df.to_csv(index=False)
+
+    return display_csv, answer_csv
+
+
+def main():
+    """Save generated data to files for testing"""
+    display_csv, answer_csv = generate_test_data()
+
+    with open("data/display_df.csv", "w") as f:
+        f.write(display_csv)
+    with open("data/answer_df.csv", "w") as f:
+        f.write(answer_csv)
+
+
+if __name__ == "__main__":
+    main()
