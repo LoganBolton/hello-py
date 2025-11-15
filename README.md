@@ -5,7 +5,7 @@ hello-py
 
 One pain I've run into when using LLMs for data cleaning is that they will frequently hallucinate details that seem reasonable, but do not exist in the original data. To help prevent this, I made an environment where the model has to take semi-structured noisy data and convert it into clean, structured data. 
 
-For my ground truth dataset, I synthetically generate a csv file with plausible looking customer information. Then, I purposelly add noise to the data with repeated fields, obvious typos, etc. The model's job is to take the noisy data and put it into a clean format, _without_ hallucinating any new information. 
+For my ground truth dataset, I synthetically generate a csv file with plausible looking customer information. Then, I purposefully add noise to the data with repeated fields, obvious typos, etc. The model's job is to take the noisy data and put it into a clean format, _without_ hallucinating any new information. 
 
 ## Code Overview
 
@@ -15,7 +15,7 @@ To control the amount of noise in the data, adjust the `noise_odds` or `dropout_
 
 ## Example Failure cases 
 
-A frequent mistake that occures is that the model will forget to include information. For example in this row, the model forgot to include the email from the original data.
+A frequent mistake that occurs is that the model will forget to include information. For example in this row, the model forgot to include the email from the original data.
 ```
 Original: CALEB FLORES,905-874-2142,cflores94@hotmail.net,"78 Elm Parkway -- Franklin -- Massachusetts -- 44195"
 Expected: Caleb,Flores,905-874-2142,cflores94@hotmail.net,78 Elm Parkway,Franklin,Massachusetts,44195
@@ -28,6 +28,10 @@ Original: ,+1 973-309-3597,dcooper@yahoo.com,"82 Maple Trail, Fairview, Ohio 613
 Expected: ,,973-309-3597,dcooper@yahoo.com,82 Maple Trail,Fairview,Ohio,61391
 Got:      Daniel,Cooper,973-309-3597,dcooper@yahoo.com,82 Maple Trail,Fairview,Ohio,61391
 ```
+
+## Environment Robustness
+
+To make sure that the task could not just be solved with better prompting, I tried out several different versions of task prompts. Even when I was very explicitly clear about the instructions, Claude still fails to complete the task consistently.
 
 # Original Code
 

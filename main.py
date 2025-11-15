@@ -4,7 +4,6 @@ from contextlib import redirect_stdout
 from io import StringIO
 from typing import Any, Callable, TypedDict
 
-import pandas as pd
 from anthropic import AsyncAnthropic
 from anthropic.types import MessageParam, ToolUnionParam
 import os
@@ -105,30 +104,25 @@ async def run_agent_loop(
 
                     # Call the appropriate tool handler
                     if tool_name == "python_expression":
-                        if not (isinstance(tool_input, dict) and "expression" in tool_input):
-                            print(f"ERROR: Invalid tool_input for python_expression: {tool_input}")
-                            result = {"result": None, "error": "Invalid tool input"}
-                        else:
-                            if verbose:
-                                print("\nInput:")
-                                print("```")
-                                for line in tool_input["expression"].split("\n"):
-                                    print(f"{line}")
-                                print("```")
-                            result = handler(tool_input["expression"])
-                            if verbose:
-                                print("\nOutput:")
-                                print("```")
-                                print(result)
-                                print("```")
+                        assert (
+                            isinstance(tool_input, dict) and "expression" in tool_input
+                        )
+                        if verbose:
+                            print("\nInput:")
+                            print("```")
+                            for line in tool_input["expression"].split("\n"):
+                                print(f"{line}")
+                            print("```")
+                        result = handler(tool_input["expression"])
+                        if verbose:
+                            print("\nOutput:")
+                            print("```")
+                            print(result)
+                            print("```")
                     elif tool_name == "submit_answer":
-                        if not (isinstance(tool_input, dict) and "answer" in tool_input):
-                            print(f"ERROR: Invalid tool_input for submit_answer: {tool_input}")
-                            print(f"Type: {type(tool_input)}")
-                            result = {"answer": None, "submitted": False}
-                        else:
-                            result = handler(tool_input["answer"])
-                            submitted_answer = result["answer"]
+                        assert isinstance(tool_input, dict) and "answer" in tool_input
+                        result = handler(tool_input["answer"])
+                        submitted_answer = result["answer"]
                     else:
                         # Generic handler call
                         result = (
@@ -173,18 +167,15 @@ async def run_single_test(
     prompt_template: str,
     tools: list[ToolUnionParam],
     tool_handlers: dict[str, Callable[..., Any]],
-    n_rows: int = 10,
-    noise_odds: float = 0.6,
-    dropout_odds: float = 0.06,
+    n_rows: int = 20,
+    noise_odds: float = 0.5,
+    dropout_odds: float = 0.05,
     verbose: bool = False,
 ) -> tuple[int, bool, Any]:
     if verbose:
         print(f"\n\n{'=' * 20} RUN {run_id}/{num_runs} {'=' * 20}")
 
-    # Generate fresh data for this test run
     display_csv, expected_answer = generate_test_data(n_rows, noise_odds, dropout_odds)
-
-    # Fill in the prompt template
     prompt = prompt_template.format(display_csv_raw=display_csv)
 
     result = await run_agent_loop(
@@ -195,9 +186,8 @@ async def run_single_test(
         verbose=verbose,
     )
 
-    # Normalize whitespace for comparison
-    result_normalized = result.strip() if isinstance(result, str) else result
-    expected_normalized = expected_answer.strip() if isinstance(expected_answer, str) else expected_answer
+    result_normalized = result.strip()
+    expected_normalized = expected_answer.strip()
 
     success = result_normalized == expected_normalized
 
@@ -205,39 +195,31 @@ async def run_single_test(
         print(f"✓ Run {run_id}: SUCCESS")
     else:
         print(f"✗ Run {run_id}: FAILURE")
-        if isinstance(result, str) and isinstance(expected_answer, str):
-            result_lines = result_normalized.split('\n')
-            expected_lines = expected_normalized.split('\n')
-            original_lines = display_csv.strip().split('\n')
+        result_lines = result_normalized.split('\n')
+        expected_lines = expected_normalized.split('\n')
+        original_lines = display_csv.strip().split('\n')
 
-            # Show line-by-line differences
-            for i, (got, exp) in enumerate(zip(result_lines, expected_lines)):
-                if got != exp:
-                    print(f"  Line {i+1} differs:")
-                    # Show original if available (skip header)
-                    if i > 0 and i < len(original_lines):
-                        print(f"    Original: {original_lines[i]}")
-                    print(f"    Expected: {exp}")
-                    print(f"    Got:      {got}\n")
+        # Show line-by-line differences
+        for i, (got, exp) in enumerate(zip(result_lines, expected_lines)):
+            if got != exp:
+                print(f"  Line {i+1} differs:")
+                print(f"    Original: {original_lines[i]}")
+                print(f"    Expected: {exp}")
+                print(f"    Got:      {got}\n")
 
-            # Show extra or missing lines
-            if len(result_lines) > len(expected_lines):
-                print(f"  Extra lines in result:")
-                for line in result_lines[len(expected_lines):]:
-                    print(f"    {line}")
-            elif len(result_lines) < len(expected_lines):
-                print(f"  Missing lines in result:")
-                for line in expected_lines[len(result_lines):]:
-                    print(f"    {line}")
-        else:
-            print(f"  Got: {result}")
-            print(f"  Expected: {expected_answer}")
+        if len(result_lines) > len(expected_lines):
+            print(f"  Extra lines in result:")
+            for line in result_lines[len(expected_lines):]:
+                print(f"    {line}")
+        elif len(result_lines) < len(expected_lines):
+            print(f"  Missing lines in result:")
+            for line in expected_lines[len(result_lines):]:
+                print(f"    {line}")
 
     return run_id, success, result
 
 
 async def main(concurrent: bool = True):
-    # Prompt template - data will be filled in for each test run
     prompt_template = """You are given noisy customer data in CSV format that needs to be parsed and cleaned.
 
 Here is the input CSV:
@@ -263,15 +245,10 @@ Submit your answer using the submit_answer tool."""
     tools: list[ToolUnionParam] = [
         {
             "name": "submit_answer",
-            "description": "Submit the final answer as a CSV string",
+            "description": "Submit the final answer",
             "input_schema": {
                 "type": "object",
-                "properties": {
-                    "answer": {
-                        "type": "string",
-                        "description": "The cleaned CSV data as a string"
-                    }
-                },
+                "properties": {"answer": {"description": "The final answer to submit"}},
                 "required": ["answer"],
             },
         },
