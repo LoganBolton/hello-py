@@ -4,6 +4,7 @@ from contextlib import redirect_stdout
 from io import StringIO
 from typing import Any, Callable, TypedDict
 
+import pandas as pd
 from anthropic import AsyncAnthropic
 from anthropic.types import MessageParam, ToolUnionParam
 import os
@@ -75,7 +76,7 @@ async def run_agent_loop(
             print(f"\n=== Step {step + 1}/{max_steps} ===")
 
         response = await client.messages.create(
-            model=model, max_tokens=1000, tools=tools, messages=messages
+            model=model, max_tokens=4096, tools=tools, messages=messages
         )
 
         # Track if we need to continue
@@ -102,25 +103,30 @@ async def run_agent_loop(
 
                     # Call the appropriate tool handler
                     if tool_name == "python_expression":
-                        assert (
-                            isinstance(tool_input, dict) and "expression" in tool_input
-                        )
-                        if verbose:
-                            print("\nInput:")
-                            print("```")
-                            for line in tool_input["expression"].split("\n"):
-                                print(f"{line}")
-                            print("```")
-                        result = handler(tool_input["expression"])
-                        if verbose:
-                            print("\nOutput:")
-                            print("```")
-                            print(result)
-                            print("```")
+                        if not (isinstance(tool_input, dict) and "expression" in tool_input):
+                            print(f"ERROR: Invalid tool_input for python_expression: {tool_input}")
+                            result = {"result": None, "error": "Invalid tool input"}
+                        else:
+                            if verbose:
+                                print("\nInput:")
+                                print("```")
+                                for line in tool_input["expression"].split("\n"):
+                                    print(f"{line}")
+                                print("```")
+                            result = handler(tool_input["expression"])
+                            if verbose:
+                                print("\nOutput:")
+                                print("```")
+                                print(result)
+                                print("```")
                     elif tool_name == "submit_answer":
-                        assert isinstance(tool_input, dict) and "answer" in tool_input
-                        result = handler(tool_input["answer"])
-                        submitted_answer = result["answer"]
+                        if not (isinstance(tool_input, dict) and "answer" in tool_input):
+                            print(f"ERROR: Invalid tool_input for submit_answer: {tool_input}")
+                            print(f"Type: {type(tool_input)}")
+                            result = {"answer": None, "submitted": False}
+                        else:
+                            result = handler(tool_input["answer"])
+                            submitted_answer = result["answer"]
                     else:
                         # Generic handler call
                         result = (
@@ -179,52 +185,96 @@ async def run_single_test(
         verbose=verbose,
     )
 
-    success = result == expected_answer
+    # Normalize whitespace for comparison
+    result_normalized = result.strip() if isinstance(result, str) else result
+    expected_normalized = expected_answer.strip() if isinstance(expected_answer, str) else expected_answer
+
+    success = result_normalized == expected_normalized
 
     if success:
-        print(f"✓ Run {run_id}: SUCCESS - Got {result}")
+        print(f"✓ Run {run_id}: SUCCESS")
     else:
-        print(f"✗ Run {run_id}: FAILURE - Got {result}, expected {expected_answer}")
+        print(f"✗ Run {run_id}: FAILURE")
+        if isinstance(result, str) and isinstance(expected_answer, str):
+            result_lines = result_normalized.split('\n')
+            expected_lines = expected_normalized.split('\n')
+            print(f"  Got {len(result_lines)} lines, expected {len(expected_lines)} lines")
+
+            # Show line-by-line differences
+            for i, (got, exp) in enumerate(zip(result_lines, expected_lines)):
+                if got != exp:
+                    print(f"  Line {i+1} differs:")
+                    print(f"    Got:      {got}")
+                    print(f"    Expected: {exp}")
+
+            # Show extra or missing lines
+            if len(result_lines) > len(expected_lines):
+                print(f"  Extra lines in result:")
+                for line in result_lines[len(expected_lines):]:
+                    print(f"    {line}")
+            elif len(result_lines) < len(expected_lines):
+                print(f"  Missing lines in result:")
+                for line in expected_lines[len(result_lines):]:
+                    print(f"    {line}")
+        else:
+            print(f"  Got: {result}")
+            print(f"  Expected: {expected_answer}")
 
     return run_id, success, result
 
 
 async def main(concurrent: bool = True):
+    # Read both CSVs as raw strings
+    with open("data/display_df.csv", "r") as f:
+        display_csv_raw = f.read()
+
+    with open("data/answer_df.csv", "r") as f:
+        expected_answer = f.read().strip()
+
+    prompt = f"""You are given noisy customer data in CSV format that needs to be parsed and cleaned.
+
+Here is the input CSV:
+{display_csv_raw}
+
+Parse and clean this data. Output a CSV with these exact columns in this order:
+first_name,last_name,phone_num,email,street_address,city,state,zip_code
+
+Rules:
+- first_name: title case
+- last_name: title case
+- phone_num: format XXX-XXX-XXXX (remove any extra digits)
+- email: do not change the original email address, just fix formatting issues (like double @ or missing dots between domain parts)
+- street_address: (number + street name + type) (e.g. 123 Main Street)
+- city: city name (title case)
+- state: full state name (title case)
+- zip_code: 5-digit zip code
+- If there is nothing for that field in the original data, leave it empty.
+
+Output ONLY the CSV with header row and data rows. No extra text or explanation.
+Submit your answer using the submit_answer tool."""
+
     tools: list[ToolUnionParam] = [
         {
-            "name": "python_expression",
-            "description": "Evaluates a Python expression",
+            "name": "submit_answer",
+            "description": "Submit the final answer as a CSV string",
             "input_schema": {
                 "type": "object",
                 "properties": {
-                    "expression": {
+                    "answer": {
                         "type": "string",
-                        "description": "Will be passed to exec(). Use print() to output something. Returns stdout. ",
+                        "description": "The cleaned CSV data as a string"
                     }
                 },
-                "required": ["expression"],
-            },
-        },
-        {
-            "name": "submit_answer",
-            "description": "Submit the final answer",
-            "input_schema": {
-                "type": "object",
-                "properties": {"answer": {"description": "The final answer to submit"}},
                 "required": ["answer"],
             },
         },
     ]
 
     tool_handlers = {
-        "python_expression": python_expression_tool,
         "submit_answer": submit_answer_tool,
     }
 
-    # Run the test 10 times and track success rate
     num_runs = 2
-    expected_answer = 8769
-    prompt = "Calculate (2^10 + 3^5) * 7 - 100. Use the python_expression tool and then submit the answer."
 
     execution_mode = "concurrently" if concurrent else "sequentially"
     print(f"Running {num_runs} test iterations {execution_mode}...")
@@ -259,7 +309,7 @@ async def main(concurrent: bool = True):
             results.append(result)
 
     # Count successes
-    successes = sum(1 for _, success, _ in results)
+    successes = sum(1 for _, success, _ in results if success)
 
     # Calculate and display pass rate
     pass_rate = (successes / num_runs) * 100

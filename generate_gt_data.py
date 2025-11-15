@@ -79,13 +79,15 @@ def generate_email(first_name, last_name):
     possible_words = ["fast", "quick", "speedy", "smart", "bright", "clever", "brave", "strong", "mighty", "fierce"]
 
     first_name_letter = first_name[0]
+    random_num = random.randint(1,99)
     
     email_formats = [
         f"{first_name}.{last_name}",
         f"{first_name_letter}{last_name}",
-        f"{first_name}_{last_name}",
+        f"{first_name_letter}{last_name}{random_num}",
+        f"{first_name}_{last_name}_{random_num}{random_num}",
         f"{first_name}{random.choice(possible_words)}",
-        f"{last_name}{random.randint(1,99)}"
+        f"{last_name}{random_num}"
     ]
 
     email_user = random.choice(email_formats)
@@ -114,7 +116,7 @@ def noise_address(address_info):
         f"{street_num} {street_name} {street_end}, {city}, {state} {zip_code}",
         f"{street_num} {street_name} {street_end}, {city}, {state_abbrev} {zip_code}",
         f"{street_num}{street_name}{street_end}{city}{state_abbrev}{zip_code}",
-        f"{zip_code} {state} {street_num} {street_name} {street_end} {city}",
+        f"zip code: {zip_code} -- {state} {street_num} {street_name} {street_end} {city}",
         f"{street_num}_{street_name}_{street_end}-{city}-{state_abbrev}-{zip_code}",
     ]
     return random.choice(template_address)
@@ -127,10 +129,11 @@ def noise_phone_number(phone_info):
     
     template_phone_number = [
         f"{area_code}-{first_digits}-{last_digits}",
+        f"{area_code}-{first_digits}-{last_digits}-{area_code}-{first_digits}-{last_digits}",
+        f"+1 {area_code}-{first_digits}-{last_digits}",
         f"{area_code}{first_digits}{last_digits}",
         f"{area_code}-{first_digits}_{last_digits}",
         f"{area_code} .  {first_digits} {last_digits}",
-        f"{area_code}-{area_code}-{first_digits}-{last_digits}",
     ]
     return random.choice(template_phone_number)
 
@@ -139,10 +142,11 @@ def noise_email(email_info):
     org = email_info["org"]
     domain = email_info["domain"]
     template_email = [
+        f"{user}@{org}.{domain}{user}@{org}.{domain}",
         f"{user}@{org}.{domain}",
-        f"{user}@{org}.{domain}".upper(),
+        f"{user}@{org}.{domain}",
         f"{user}@{org}@{domain}",
-        f"{user}@{org}{domain}.{domain}",
+        f"{user}@{org}  {domain}.{domain}",
     ]
     return random.choice(template_email)
 
@@ -151,6 +155,7 @@ def noise_name(name_info):
     last_name = name_info["last_name"].lower()
     template_name = [
         f"{first_name} {last_name}",
+        f"{first_name} {last_name} {first_name.upper()} {last_name.upper()}",
         f"{first_name} {last_name}".upper(),
         f"{first_name}_{last_name}",
         f"{first_name},{last_name},{last_name}"
@@ -165,9 +170,10 @@ display_cols = ["noisy_full_name", "noisy_address", "noisy_phone_num", "noisy_em
 
 answer_df = pd.DataFrame()
 answer_cols = ["first_name", "last_name", "phone_num", "email", "street_address", "city", "state", "zip_code"]
-NOISE_ODDS = 0.4
-DROPPOUT_ODDS = 0.05
-for i in range(10):
+NOISE_ODDS = 0.8
+DROPPOUT_ODDS = 0.10
+N_ROWS = 30
+for i in range(N_ROWS):
 
     name_info = generate_name()
     first_name = name_info["first_name"].lower()
@@ -190,13 +196,30 @@ for i in range(10):
         display_phone_number = noise_phone_number(phone_info)
     if random.random() < NOISE_ODDS:
         display_email = noise_email(email_info)
-
+        
+        
+    if random.random() < DROPPOUT_ODDS:
+        display_name = ""
+        first_name = ""
+        last_name = ""
+    if random.random() < DROPPOUT_ODDS:
+        display_address = ""
+        address_info["street_address"] = ""
+        address_info["city"] = ""
+        address_info["state"] = ""
+        address_info["zip_code"] = ""
+    if random.random() < DROPPOUT_ODDS:
+        display_phone_number = ""
+        phone_info["phone_num"] = ""
+    if random.random() < DROPPOUT_ODDS:
+        display_email = ""
+        email_info["email"] = ""
 
     display_df = pd.concat([display_df, pd.DataFrame([{
         "noisy_full_name": display_name,
-        "noisy_address": display_address,
         "noisy_phone_num": display_phone_number,
         "noisy_email": display_email,
+        "noisy_address": display_address,
     }])], ignore_index=True)
 
     gt_df = pd.concat([gt_df, pd.DataFrame([{
@@ -218,13 +241,13 @@ for i in range(10):
     }])], ignore_index=True)
     
     answer_df = pd.concat([answer_df, pd.DataFrame([{
-        "first_name": first_name,
-        "last_name": last_name,
+        "first_name": first_name.title(),
+        "last_name": last_name.title(),
         "phone_num": phone_info["phone_num"],
         "email": email_info["email"],
         "street_address": address_info["street_address"],
-        "city": address_info["city"],
-        "state": address_info["state"],
+        "city": address_info["city"].title(),
+        "state": address_info["state"].title(),
         "zip_code": address_info["zip_code"]
     }])], ignore_index=True)
 
