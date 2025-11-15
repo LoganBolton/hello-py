@@ -1,6 +1,36 @@
 hello-py
 ===
 
+# Take-home Summary
+
+One pain I've run into when using LLMs for data cleaning is that they will frequently hallucinate details that seem reasonable, but do not exist in the original data. To help prevent this, I made an environment where the model has to take semi-structured noisy data and convert it into clean, structured data. 
+
+For my ground truth dataset, I synthetically generate a csv file with plausible looking customer information. Then, I purposelly add noise to the data with repeated fields, obvious typos, etc. The model's job is to take the noisy data and put it into a clean format, _without_ hallucinating any new information. 
+
+## Code Overview
+
+_n_ rows of unique data are generated for each run through the `generate_gt_data.py` file. 
+
+To control the amount of noise in the data, adjust the `noise_odds` or `dropout_odds` arguments in `run_single_test()`. These variables control the probability that a field has noise applied or is removed entirely. 
+
+## Example Failure cases 
+
+A frequent mistake that occures is that the model will forget to include information. For example in this row, the model forgot to include the email from the original data.
+```
+Original: CALEB FLORES,905-874-2142,cflores94@hotmail.net,"78 Elm Parkway -- Franklin -- Massachusetts -- 44195"
+Expected: Caleb,Flores,905-874-2142,cflores94@hotmail.net,78 Elm Parkway,Franklin,Massachusetts,44195
+Got:      Caleb,Flores,905-874-2142,,78 Elm Parkway,Franklin,Massachusetts,44195
+```
+
+For this row, the first and last name are NOT provided to the model. However, the model makes the unfounded assumption that the user's name is Daniel Cooper based off the email address
+```
+Original: ,+1 973-309-3597,dcooper@yahoo.com,"82 Maple Trail, Fairview, Ohio 61391"
+Expected: ,,973-309-3597,dcooper@yahoo.com,82 Maple Trail,Fairview,Ohio,61391
+Got:      Daniel,Cooper,973-309-3597,dcooper@yahoo.com,82 Maple Trail,Fairview,Ohio,61391
+```
+
+# Original Code
+
 Setup instructions:
 
 1. Clone the repository:

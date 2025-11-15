@@ -161,7 +161,7 @@ def noise_name(name_info):
     ]
     return random.choice(template_name)
 
-def generate_test_data(n_rows=10, noise_odds=0.6, dropout_odds=0.10):
+def generate_test_data(n_rows=10, noise_odds=0.6, dropout_odds=0.06):
     """Generate test data without saving to files. Returns CSV strings."""
     display_rows = []
     answer_rows = []

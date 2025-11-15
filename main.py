@@ -173,13 +173,16 @@ async def run_single_test(
     prompt_template: str,
     tools: list[ToolUnionParam],
     tool_handlers: dict[str, Callable[..., Any]],
+    n_rows: int = 10,
+    noise_odds: float = 0.6,
+    dropout_odds: float = 0.06,
     verbose: bool = False,
 ) -> tuple[int, bool, Any]:
     if verbose:
         print(f"\n\n{'=' * 20} RUN {run_id}/{num_runs} {'=' * 20}")
 
     # Generate fresh data for this test run
-    display_csv, expected_answer = generate_test_data()
+    display_csv, expected_answer = generate_test_data(n_rows, noise_odds, dropout_odds)
 
     # Fill in the prompt template
     prompt = prompt_template.format(display_csv_raw=display_csv)
@@ -206,7 +209,6 @@ async def run_single_test(
             result_lines = result_normalized.split('\n')
             expected_lines = expected_normalized.split('\n')
             original_lines = display_csv.strip().split('\n')
-            print(f"  Got {len(result_lines)} lines, expected {len(expected_lines)} lines")
 
             # Show line-by-line differences
             for i, (got, exp) in enumerate(zip(result_lines, expected_lines)):
@@ -279,7 +281,7 @@ Submit your answer using the submit_answer tool."""
         "submit_answer": submit_answer_tool,
     }
 
-    num_runs = 5
+    num_runs = 10
 
     execution_mode = "concurrently" if concurrent else "sequentially"
     print(f"Running {num_runs} test iterations {execution_mode}...")
