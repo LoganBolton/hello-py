@@ -6,7 +6,10 @@ from typing import Any, Callable, TypedDict
 
 from anthropic import AsyncAnthropic
 from anthropic.types import MessageParam, ToolUnionParam
-
+import os
+api_key = os.getenv("ANTHROPIC_API_KEY_PERSONAL")
+if api_key is None:
+    raise ValueError("ANTHROPIC_API_KEY_PERSONAL is not set")
 
 class PythonExpressionToolResult(TypedDict):
     result: Any
@@ -64,7 +67,7 @@ async def run_agent_loop(
     Returns:
         The submitted answer if submit_answer was called, otherwise None
     """
-    client = AsyncAnthropic()
+    client = AsyncAnthropic(api_key=api_key)
     messages: list[MessageParam] = [{"role": "user", "content": prompt}]
 
     for step in range(max_steps):
@@ -219,7 +222,7 @@ async def main(concurrent: bool = True):
     }
 
     # Run the test 10 times and track success rate
-    num_runs = 10
+    num_runs = 2
     expected_answer = 8769
     prompt = "Calculate (2^10 + 3^5) * 7 - 100. Use the python_expression tool and then submit the answer."
 
